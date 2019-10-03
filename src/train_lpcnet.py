@@ -42,7 +42,7 @@ config = tf.ConfigProto()
 
 # use this option to reserve GPU memory, e.g. for running more than
 # one thing at a time.  Best to disable for GPUs with small memory
-config.gpu_options.per_process_gpu_memory_fraction = 0.44
+#config.gpu_options.per_process_gpu_memory_fraction = 0.44
 
 set_session(tf.Session(config=config))
 
@@ -97,8 +97,23 @@ del sig
 del pred
 
 # dump models to disk as we go
-checkpoint = ModelCheckpoint('lpcnet20_384_10_G16_{epoch:02d}.h5')
+checkpoint = ModelCheckpoint('lpcnet30_384_10_G16_{epoch:02d}.h5')
 
-#model.load_weights('lpcnet9b_384_10_G16_01.h5')
-model.compile(optimizer=Adam(0.001, amsgrad=True, decay=5e-5), loss='sparse_categorical_crossentropy')
-model.fit([in_data, in_exc, features, periods], out_exc, batch_size=batch_size, epochs=nb_epochs, validation_split=0.0, callbacks=[checkpoint, lpcnet.Sparsify(2000, 40000, 400, (0.05, 0.05, 0.2))])
+#Set this to True to adapt an existing model (e.g. on new data)
+adaptation = False
+
+if adaptation:
+    #Adapting from an existing model
+    model.load_weights('lpcnet24c_384_10_G16_120.h5')
+    sparsify = lpcnet.Sparsify(0, 0, 1, (0.05, 0.05, 0.2))
+    lr = 0.0001
+    decay = 0
+else:
+    #Training from scratch
+    sparsify = lpcnet.Sparsify(2000, 40000, 400, (0.05, 0.05, 0.2))
+    lr = 0.001
+    decay = 5e-5
+
+model.compile(optimizer=Adam(lr, amsgrad=True, decay=decay), loss='sparse_categorical_crossentropy')
+model.save_weights('lpcnet30_384_10_G16_00.h5');
+model.fit([in_data, features, periods], out_exc, batch_size=batch_size, epochs=nb_epochs, validation_split=0.0, callbacks=[checkpoint, sparsify])
